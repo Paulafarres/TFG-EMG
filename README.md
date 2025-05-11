@@ -38,11 +38,11 @@ Aquest projecte forma part del Treball de Final de Grau en Enginyeria Biomèdica
 
 ## Manual d’usuari
 
-1. Escriu el nom
-2. Selecciona la cama
+1. Escriu el nom del pacient al camp corresponent.
+2. Selecciona la cama (operada o sana).
 2. Durant l’exercici, observa el gràfic EMG i percentatge d’activació.
 3. Prem *STOP* per aturar la sessió.
-4. El sistema exportarà automàticament un fitxer `.csv` amb dades reals i % d’activitat.
+4. El sistema exportarà automàticament un fitxer `.csv` amb dades reals i valors RMS.
 5. A la pestanya de comparació, pots carregar dos fitxers per analitzar diferències entre cama operada i sana.
 
 ## Dades
