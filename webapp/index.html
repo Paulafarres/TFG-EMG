@@ -1,0 +1,466 @@
+<!--Interfície web interactiva per connectar-se via BLE. Visualitzar senyals musculars en temps real, mesurar l'activitat muscular,
+exportar dades i comparar resultats entre dues cames en exercicis de força com la sentadilla -->
+
+<!-- ESTRUCTURA GENERAL:
+ HTML i CSS - Dissenya estructura visual de la pàgina, mostra botons, selecció fitxer i pestanyes. Es visualitzen 2 gràfics amb Chart.js
+ BLE - Quan cliques START, el navegador busca un dispositiu BLE anomenat TFG EMG. El dispositiu envia dades cada x temps codificades en text. 
+      Les dades contenen: 3 arrays de valors EMG, 3 arrays de valors percentuals (activació de cada múscul)
+ VISUALITZACIÓ EN TEMPS REAL - Gràfic de línies (EMG) Gràfic de barres (% Activitat muscular) Si el quàdriceps té menys del 50% respecte dels altres
+                              mostra avís (Possible dèficit/compensacions)
+ PROCESSAMENT RMS - Cada vegada que arriben dades, es calcula la RMS per cada array de valors. S'emmagatzema el valor RMS per poder calcular una mitjana final
+ EXPORTACIÓ CSV - Quan cliques STOP, es guarda el fitxer CSV amb totes les dades EMG recollides, els valors RMS finals de cada múscul i un RMS total
+ COMPARACIÓ ENTRE FITXERS - L'usuari pot seleccionar dos fitxers CSV. Es calcula la rms de cada múscul en cada fitxer. Es mostra una taula comparativa
+                            amb la diferència percentual. Si la diferència és gran (>=20%) i la cama operada té menys activació, mostra Possible dèficit
+-->
+
+<!-- FUNCIONALITAT PRINCIPAL:
+  - Seleccionar l'exercici i cama -> START
+  - Veure en temps real el senyal EMG i % d'activitat
+  - Desar automàticament un CSV amb dades i RMS -> STOP
+  - Comparar fitxers per detectar possibles desequilibris -> COMPARAR RMS
+-->
+  
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+  <!--Metadades i títol -->
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>TFG EMG BLE - Visualització i Exportació</title>
+  <!--Llibreriex externes-->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!--Estil CSS-->
+  <style>
+    body { font-family: sans-serif; padding: 2rem; background: rgba(162, 161, 161, 0.577); }
+    canvas { background: rgb(255, 255, 255); border: 2px solid black; margin-bottom: 2rem; }
+    select, button { margin: 1rem; padding: 1rem; }
+    .tab-content { display: none; }
+    .tab-button { padding: 15px; background-color: black; color: white; border: 4px solid #edf3ee; margin-right: 3px; width: fit-content; cursor: pointer; }
+    .tab-container { display: flex; gap: 50px; margin-top: 10px; margin-bottom: 10px; margin-left: 75px; }
+    .control-horitzontal { display: flex; align-items: center; gap: 75px; margin-bottom: 15px; flex-wrap: wrap; }
+    .fitxer-i-comparar { display: flex; align-items: flex-start; gap: 100px; margin-bottom: 15px; }
+    .vertical { display: flex; flex-direction: column; gap: 30px; }
+    .boto-comparar { margin-top: 0px; }
+    .contenidor-central { max-width: 900px; margin: 0 auto; padding: 100px; display: flex; flex-direction: column; align-items: center; gap: 20px; }
+    .tab-content.show { display: block; }
+    .alerta { color: red; font-weight: bold;}
+    button.start-btn { background-color: green; color: white; border: 2px solid white; font-weight: bold; cursor: pointer; }
+    button.stop-btn { background-color: red; color: white; border: 2px solid white; font-weight: bold; cursor: pointer; }
+    #warningMessage {
+      display: none;
+      background-color: #f61d2f;
+      color: #370d12;
+      padding: 10px;
+      border: 1px solid #f5c6cb;
+      border-radius: 5px;
+      margin-bottom: 15px;
+      font-size: 18px;
+      font-weight: bold;
+      text-align: center;
+    }
+  </style>
+</head>
+<!--estructura html-->
+<body>
+  <div class="contenidor-central">
+    <!--Títol-->
+    <h2>Visualització senyal EMG i activitat muscular</h2>
+
+    <label>Nom del pacient:
+      <input type="text" id="nomPacient" placeholder="Escriu el nom">
+    </label>
+    <!-- Selecció exercici, selecció cama i controls d'inici / aturada-->
+    <div class="control-horitzontal">
+      <label>Exercici:
+        <select id="exercici">
+          <option value="sentadilla">Esquat</option>
+        </select>
+      </label>
+
+      <label>Cama:
+        <select id="cama">
+          <option value="operada">Operada</option>
+          <option value="sana">Sana</option>
+        </select>
+      </label>
+
+      <button class="start-btn" onclick="startProgram()">START</button>
+      <button class="stop-btn" onclick="stopProgram()">STOP</button>
+    </div>
+
+    <!-- Selecció de fitxers per comparar-->
+    <div class="fitxer-i-comparar">
+      <div class="vertical">
+        <div style="margin-top: 22px;">
+          <div>
+            <label for="csvFile1">Fitxer cama operada:</label>
+            <input type="file" id="csvFile1" accept=".csv">
+          </div>
+          <div>
+            <label for="csvFile2">Fitxer cama sana:</label>
+            <input type="file" id="csvFile2" accept=".csv">
+          </div>
+        </div>
+      </div>
+      <div class="boto-comparar">
+        <button onclick="compareCSV()">Comparar RMS</button>
+      </div>
+    </div>
+
+    <!--Pestanyes per seleccionar gràfics-->
+    <div class="tab-container">
+      <div class="tab-button" onclick="toggleTab('emgTab')">Senyal EMG</div>
+      <div class="tab-button" onclick="toggleTab('barChartTab')">% Activitat Muscular</div>
+    </div>
+
+    <div id="emgTab" class="tab-content">
+      <h3>Senyal EMG en temps real</h3>
+      <canvas id="emgChart" width="800" height="400"></canvas>
+    </div>
+
+    <div id="barChartTab" class="tab-content">
+      <h3>Percentatge d'activitat muscular</h3>
+      <canvas id="barChart" width="600" height="300"></canvas>
+    </div>
+
+    <!--Missatge d'alerta-->
+    <div id="warningMessage">
+      El percentatge d'activitat del quàdriceps és molt inferior als altres músculs!
+    </div>
+
+    <!-- Resultat de la comparació-->
+    <div id="comparisonResult"></div>
+
+    <!--JavaScript-->
+    <script>
+      //Variables globals i configuració inicial
+      let emgChart, barChart;
+      let emgData = [], rmsData = [];
+      let rms1_array = [], rms2_array = [], rms3_array = [];
+      let startTime = Date.now(), elapsedTime = 0, isRunning = false, bleDevice = null;
+      const MAX_POINTS = 20;
+      const LLINDAR_DEFICIT = 20; // % de diferència que considerem rellevant
+
+      //Funcions de gràfics
+      window.onload = function () { //quan es carrega la pàgina web
+      // Inicialitzar els gràfics EMG i percentatge d'activitat
+      const ctxEMG = document.getElementById('emgChart').getContext('2d'); 
+      emgChart = new Chart(ctxEMG, { //Crea un gràfic de tipus línia
+        type: 'line',
+        data: { //Defineix les etiquetes de l'eix X que s'omplen en temps real (temps en s)
+          labels: [],
+          datasets: [ //Defineix tres canals. Label = nom del múscul, data = array que s'anirà omplint amb valors EMG
+            { label: 'Quàdriceps', data: [], borderColor: 'blue' },
+            { label: 'Isquios', data: [], borderColor: 'red' },
+            { label: 'Gluti', data: [], borderColor: 'green' }
+          ]
+        },
+        options: { 
+          animation: false,
+          responsive: false,
+          scales: { y: { beginAtZero: true } }
+        }
+      });
+  
+      const ctxBar = document.getElementById('barChart').getContext('2d');
+      barChart = new Chart(ctxBar, { //Crea un gràfic tipus barra
+        type: 'bar',
+        data: {
+          labels: ['Quàdriceps', 'Isquios', 'Gluti'], //Defineix les etiquetes X (noms dels músculs)
+          datasets: [{ //data=valors inicials del percentatge d'activitat
+            label: '% Activitat',
+            data: [0, 0, 0],
+            backgroundColor: ['blue', 'red', 'green'] //color de cada barra
+          }]
+        },
+        options: {
+          responsive: false,
+          plugins: {
+            legend:{
+              display : false
+            }
+          },
+          scales: { y: { beginAtZero: true, max: 100 } }
+        }
+      });
+    }
+
+      //Funcions de processament
+
+ //     function calcularRMS(array) {
+ // const mitjana = array.reduce((sum, val) => sum + val, 0) / array.length;
+  //const sumQuadrats = array.reduce((sum, val) => sum + Math.pow(val - mitjana, 2), 0);
+  //const rms = Math.sqrt(sumQuadrats / array.length);
+  //return parseFloat(rms.toFixed(2));
+//}
+
+// Serveix per calcular la RMS d'un array de valors
+      function calcularRMS(array) {
+        const sumQuadrats = array.reduce((sum, val) => sum + val * val, 0); //fa la suma dels quadrats de tots els valors de l'array
+        const rms = Math.sqrt(sumQuadrats / array.length); //calcula l'arrel quadrada del valor mitjà dels quadrats
+        return parseFloat(rms.toFixed(2)); //retorna el valor arrodonit a dues xifres decimals, convertit a número flotant
+      }
+
+      //Actualitza el gràfic de línies
+      function updateEMGChart(v1, v2, v3) {
+        if (!isRunning) return; //evita actualitzar el gràfic si el programa està aturat
+
+        //limita el nombre de punts (manté MAX_POINTS valors visibles)
+        if (emgChart.data.labels.length >= MAX_POINTS) {
+          emgChart.data.labels.shift();
+          emgChart.data.datasets.forEach(ds => ds.data.shift());
+        }
+        //afegeix un nou punt temporal. el temps actual s com etiqueta a l'eix X
+        elapsedTime = (Date.now() - startTime) / 1000;
+        emgChart.data.labels.push(elapsedTime.toFixed(2));
+
+        //Afegeix els valors emg
+        emgChart.data.datasets[0].data.push(v1);
+        emgChart.data.datasets[1].data.push(v2);
+        emgChart.data.datasets[2].data.push(v3);
+
+        //actualitza el gràfic
+        emgChart.update();
+        //guarda les dades per a l'exportació csv posterior
+        emgData.push({ t: elapsedTime, v1, v2, v3 });
+      }
+
+      //Actualitzar el gràfic de barres del percentatge d'activitat muscular. Mostra avís si el quàdriceps té molt poca activitat
+      function updateBarChart(p1, p2, p3) {
+        if (!isRunning) return;
+
+        //assigna els nous valors
+        barChart.data.datasets[0].data = [p1, p2, p3];
+        barChart.update();
+        //desa els valors per si es volen exportar
+        rmsData.push({ t: elapsedTime, p1, p2, p3 });
+        // Mostrar el missatge d'alerta si el percentatge del quàdriceps és molt inferior als altres músculs
+        if (p1 < p2 * 0.5 || p1 < p3 * 0.5) {
+          document.getElementById("warningMessage").style.display = "block"; // Mostrar el missatge
+        } else {
+          document.getElementById("warningMessage").style.display = "none"; // Ocultar el missatge
+        }
+      }
+
+      //Funcions de control de programa
+      function startProgram() {
+        isRunning = true;
+        resetData();
+        connectBLE();
+        document.getElementById('warningMessage').style.display = "none";
+        document.getElementById('emgTab').classList.remove('show');
+        document.getElementById('barChartTab').classList.remove('show');
+        document.getElementById('comparisonResult').innerHTML = "";
+      }
+
+      function stopProgram() {
+        isRunning = false;
+        exportCSV();
+        resetData();
+        document.getElementById('warningMessage').style.display = "none";
+        document.getElementById('emgTab').classList.remove('show');
+        document.getElementById('barChartTab').classList.remove('show');
+      }
+
+      function resetData() {
+        emgChart.data.labels = [];
+        emgChart.data.datasets.forEach(ds => ds.data = []);
+        emgChart.update();
+        barChart.data.datasets[0].data = [0, 0, 0];
+        barChart.update();
+        emgData = []; rmsData = [];
+        rms1_array = []; rms2_array = []; rms3_array = [];
+      }
+      
+      function toggleTab(tabName) {
+        const tab = document.getElementById(tabName);
+        tab.classList.toggle('show');
+      }
+
+      
+      //BLE (Connexió i notificacions)
+      async function connectBLE() {
+        //Mostra una finestra per seleccionar un dispositiu BLE que es digui TFG EMG i demana accés al servei UUID
+        const device = await navigator.bluetooth.requestDevice({
+          filters: [{ name: 'TFG EMG' }],
+          optionalServices: ['0af56af5-502d-4244-ae1d-262a9d72945d']
+        });
+
+        //Es connecta al GATT server del BLE, accedeix al servei definit al codi de l'ESP32 i aconsegueix la característica
+        bleDevice = device;
+        const server = await device.gatt.connect();
+        const service = await server.getPrimaryService('0af56af5-502d-4244-ae1d-262a9d72945d');
+        const char = await service.getCharacteristic('4fc085b6-f4a6-4142-ac13-ced0cf3ad0e3');
+
+        //Escolta les notificacions. cada cop que rep dades, executa una funció per processar-les
+        await char.startNotifications();
+
+        char.addEventListener('characteristicvaluechanged', event => {
+          //decodifica el valor rebut (text) i el separa en línies
+          const value = new TextDecoder().decode(event.target.value);
+          const lines = value.split('\n');
+
+          //Converteix les línies en arrays de números (emg1,emg2,emg3) i percentatges
+          const emg1 = lines[0].split(',').map(Number);
+          const emg2 = lines[1].split(',').map(Number);
+          const emg3 = lines[2].split(',').map(Number);
+          const perc1 = parseFloat(lines[3]);
+          const perc2 = parseFloat(lines[4]);
+          const perc3 = parseFloat(lines[5]);
+
+          //Calcula rms de cada canal 
+          rms1_array.push(calcularRMS(emg1)); //emg1 conté els últims 20 valors del canal 1, calcula rms de les 20 mostres
+          rms2_array.push(calcularRMS(emg2)); 
+          rms3_array.push(calcularRMS(emg3));
+
+          //Mostra el primer valor de cada array en el gràfic de línies EMG
+          updateEMGChart(emg1[0], emg2[0], emg3[0]);
+
+          //Actualitza el gràfic de barres
+          updateBarChart(perc1,perc2,perc3);
+        });
+      }
+
+
+    //Funcions per exportar i comparar CSV
+    //exportCSV serveix per guardar totes les dades recollides durant la sessió en un fitxer CSV
+      function exportCSV() {
+        //Informació bàsica. Crea un nom d'arxiu 
+        const exercici = document.getElementById('exercici').value;
+        const cama = document.getElementById('cama').value;
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const pacient = document.getElementById('nomPacient').value.trim() || 'pacient';
+
+
+        //Calcula els valors finals RMS. Fa la mitjana global de l'activitat muscular en cada canal
+        const rms1_final = calcularRMS(rms1_array); //calcula el rms del rms (una mitjana global al final). 
+        const rms2_final = calcularRMS(rms2_array);
+        const rms3_final = calcularRMS(rms3_array);
+        const rms_total = calcularRMS([...rms1_array, ...rms2_array, ...rms3_array]); //representa el nivell d'activació general
+        
+        //crea l'estructura del fitxer csv i va afegint les mostres recollides (temps i valors EMG)
+        let csv = "Temps,EMG1,EMG2,EMG3\n";
+        for (let i = 0; i < emgData.length; i++) {
+          csv += `${emgData[i].t},${emgData[i].v1},${emgData[i].v2},${emgData[i].v3}\n`;
+        }
+
+        //Afegeix els resultats finals al final del fitxer
+        csv += `TOTAL_RMS,,,\n`;
+        csv += `RMS Finals,,${rms1_final.toFixed(2)},${rms2_final.toFixed(2)},${rms3_final.toFixed(2)},,RMS_TOT: ${rms_total.toFixed(2)}\n`;
+        
+        //Descarrega l'arxiu automàticament
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${pacient}_${exercici}_${cama}_${timestamp}.csv`;
+        a.click();
+      }
+
+      //Llegeix un fitxer .csv que l'usuari selecciona i el converteix en un array de dades estructurat per poder-lo processar fàcilment
+      function parseCSV(file) {
+        //es crea una promise perquè lectura del fitxer és asíncrona (cal esperar que acabi). Retorna resolve(data) quan ha acabat bé; reject si error
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader(); //es crea un objecte FileReader per llegir el contingut del fitxer
+         
+          //quan ha llegit el fitxer:
+          reader.onload = event => {
+            const lines = event.target.result.split('\n'); //event.target.result conté tot el text del .csv. Es divideix en línies
+            const data = lines.slice(1).map(line => line.split(',')); //s'ignora la primera línia que és el títol. Cada línia es divideix per comer per tenir un array per fila [temps, emg1, emg2, emg3].
+            resolve(data);
+          };
+          reader.onerror = reject;
+          reader.readAsText(file);
+        });
+      }
+
+      //Serveix per controlar que s'han seleccionat correctament els dos fitxers abans de comparar
+      //Si no s'ha seleccionat algun fitxer, apareix alert
+      function compareCSV() {
+        const file1 = document.getElementById('csvFile1').files[0];
+        const file2 = document.getElementById('csvFile2').files[0];
+        if (!file1 || !file2) {
+          alert("Cal seleccionar dos fitxers CSV per comparar.");
+          return;
+        }
+
+        //Carrega i llegeix els dos fitxers en paral·lel. data1 i data2 contindran el contingut del fitxer com a matrius. cada fila = un array
+        Promise.all([parseCSV(file1), parseCSV(file2)]).then(([data1, data2]) => {
+
+          const emg1_1 = data1.map(row => parseFloat(row[1])).filter(n => !isNaN(n)); //llegeix la columna 1 (EMG1=quàdriceps) de data1
+          const emg2_1 = data1.map(row => parseFloat(row[2])).filter(n => !isNaN(n)); //columna 2 (isquios) de data1
+          const emg3_1 = data1.map(row => parseFloat(row[3])).filter(n => !isNaN(n)); //columna 3 (gluti) de data1
+          const emg1_2 = data2.map(row => parseFloat(row[1])).filter(n => !isNaN(n)); //columna 1 (quadriceps) de data 2
+          const emg2_2 = data2.map(row => parseFloat(row[2])).filter(n => !isNaN(n));
+          const emg3_2 = data2.map(row => parseFloat(row[3])).filter(n => !isNaN(n));
+
+          //calcula rms de totes les mostres de cada muscul
+          const rmsQuad1 = calcularRMS(emg1_1);
+          const rmsQuad2 = calcularRMS(emg1_2);
+          const rmsIsq1 = calcularRMS(emg2_1);
+          const rmsIsq2 = calcularRMS(emg2_2);
+          const rmsGlut1 = calcularRMS(emg3_1);
+          const rmsGlut2 = calcularRMS(emg3_2);
+
+          console.log("OPERADA → Quad:", rmsQuad1, "Isquios:", rmsIsq1, "Gluti:", rmsGlut1);
+          console.log("SANA → Quad:", rmsQuad2, "Isquios:", rmsIsq2, "Gluti:", rmsGlut2);
+
+          //Diferència absoluta multiplicada * 100 (%)
+          const percentDiff = (operada, sana) => {
+          // const base = (operada + sana) / 2;
+          // if (base === 0) return "N/A";
+            return ((Math.abs(operada - sana)) * 100).toFixed(2);
+          };
+
+          const diffQuad = percentDiff(rmsQuad1, rmsQuad2);
+          const diffIsq = percentDiff(rmsIsq1, rmsIsq2);
+          const diffGlut = percentDiff(rmsGlut1, rmsGlut2);
+
+          const highlight = (value) => parseFloat(value) > 20 ? `<span class="alerta">${value}%</span>` : `${value}%`;
+          //compara si la cama operada té rms més baix i si la diferència és prou gran (>20%). Si sí, mostra Possible dèficit en vermell
+          const resultHTML = `
+          <h3>Comparació RMS EMG</h3>
+          <table border="2">
+            <tr>
+              <th>Múscul</th>
+              <th>Cama operada</th>
+              <th>Cama sana</th>
+              <th>Diferència %</th>
+              <th>Valoració</th>
+            </tr>
+            <tr>
+              <td>Quàdriceps</td>
+              <td>${rmsQuad1.toFixed(2)}</td>
+              <td>${rmsQuad2.toFixed(2)}</td>
+              <td>${highlight(diffQuad)}</td>
+              <td>${(rmsQuad1 < rmsQuad2 && diffQuad > LLINDAR_DEFICIT) ? '<span class="alerta">Possible dèficit</span>' : 'OK'}</td> 
+            
+              </tr>
+            <tr>
+              <td>Isquios</td>
+              <td>${rmsIsq1.toFixed(2)}</td>
+              <td>${rmsIsq2.toFixed(2)}</td>
+              <td>${highlight(diffIsq)}</td>
+              <td>${(rmsIsq1 < rmsIsq2 && diffIsq > LLINDAR_DEFICIT) ? '<span class="alerta">Possible dèficit</span>' : 'OK'}</td>
+            
+            </tr>
+            <tr>
+              <td>Gluti</td>
+              <td>${rmsGlut1.toFixed(2)}</td>
+              <td>${rmsGlut2.toFixed(2)}</td>
+              <td>${highlight(diffGlut)}</td>
+              <td>${(rmsGlut1 < rmsGlut2 && diffGlut > LLINDAR_DEFICIT) ? '<span class="alerta">Possible dèficit</span>' : 'OK'}</td>
+            
+            </tr>
+          </table>`;
+        
+        
+          document.getElementById("comparisonResult").innerHTML = resultHTML; //afegeix la taula generada fins l'element html amb id=comparisonResult
+          });
+      }
+            
+
+    </script>
+  </div>
+</body>
+</html>
