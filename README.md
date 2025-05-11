@@ -24,7 +24,7 @@ Aquest projecte forma part del Treball de Final de Grau en Enginyeria Biomèdica
 - Navegador web compatible amb BLE (ex. Chrome) per visualització i comparació de dades
 
 
-## ⚙Instal·lació
+## Instal·lació
 
 1. **ESP32:**
    - Obre el directori `firmware/` amb PlatformIO.
