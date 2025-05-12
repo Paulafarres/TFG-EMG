@@ -49,6 +49,18 @@ Aquest projecte forma part del Treball de Final de Grau en Enginyeria Biomèdica
 
 Els fitxers de dades s’exporten automàticament des de la interfície web. També es poden afegir manualment a la carpeta `data/`.
 
+## Autoria
+
+Paula Farrés Sorroche
+
+Grau en Enginyeria Biomèdica
+
+Universitat de Girona
+
+Curs 2024–2025
+
+Tutor: Carles Pous Sabadí
+
 ## Llicència
 
 Aquest projecte s’allibera sota llicència MIT. Pots reutilitzar-lo amb finalitats docents o de recerca, citant l’autora.
