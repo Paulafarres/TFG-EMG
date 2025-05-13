@@ -54,18 +54,18 @@ class MyServerCallbacks: public BLEServerCallbacks {
 
 //FUNCIONS DE PROCESSAMENT DE SENYAL
 //Actualització de màxims i càlculs de percentatges
-void actualitzarMaxValues(float emg1,float emg2, float emg3){
+void actualitzarMaxValues(float emg1_value,float emg2_value, float emg3_value){
   emg1_value = fabs(emg1_value);
   emg2_value = fabs(emg2_value);
   emg3_value = fabs(emg3_value);
  //Actualitzar els maxims
- if (emg1_value > max1) max1 = emg1_value;
- if (emg2_value > max2) max2 = emg2_value;
- if (emg3_value > max3) max3= emg3_value;
- float maxTotal = max1 + max2 + max3;
- perc1 = (max1/maxTotal)*100;
- perc2= (max2/maxTotal)*100;
- perc3 = (max3/maxTotal)*100;
+  if (emg1_value > max1) max1 = emg1_value;
+  if (emg2_value > max2) max2 = emg2_value;
+  if (emg3_value > max3) max3= emg3_value;
+  float maxTotal = max1 + max2 + max3;
+  perc1 = (max1/maxTotal)*100;
+  perc2= (max2/maxTotal)*100;
+  perc3 = (max3/maxTotal)*100;
 }
 
 
