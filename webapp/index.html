@@ -139,7 +139,7 @@ exportar dades i comparar resultats entre dues cames en exercicis de força com 
       let rms1_array = [], rms2_array = [], rms3_array = [];
       let startTime = Date.now(), elapsedTime = 0, isRunning = false, bleDevice = null;
       const MAX_POINTS = 20;
-      const LLINDAR_DEFICIT = 20; // % de diferència que considerem rellevant
+      const LLINDAR_DEFICIT = 15; // % de diferència que considerem rellevant
 
       //Funcions de gràfics
       window.onload = function () { //quan es carrega la pàgina web
@@ -185,14 +185,6 @@ exportar dades i comparar resultats entre dues cames en exercicis de força com 
       });
     }
 
-      //Funcions de processament
-
- //     function calcularRMS(array) {
- // const mitjana = array.reduce((sum, val) => sum + val, 0) / array.length;
-  //const sumQuadrats = array.reduce((sum, val) => sum + Math.pow(val - mitjana, 2), 0);
-  //const rms = Math.sqrt(sumQuadrats / array.length);
-  //return parseFloat(rms.toFixed(2));
-//}
 
 // Serveix per calcular la RMS d'un array de valors
       function calcularRMS(array) {
@@ -309,7 +301,7 @@ exportar dades i comparar resultats entre dues cames en exercicis de força com 
           const perc3 = parseFloat(lines[5]);
 
           //Calcula rms de cada canal 
-          rms1_array.push(calcularRMS(emg1)); //emg1 conté els últims 20 valors del canal 1, calcula rms de les 20 mostres
+          rms1_array.push(calcularRMS(emg1)); //emg1 conté els últims 10 valors del canal 1, calcula rms de les 10 mostres
           rms2_array.push(calcularRMS(emg2)); 
           rms3_array.push(calcularRMS(emg3));
 
@@ -405,18 +397,19 @@ exportar dades i comparar resultats entre dues cames en exercicis de força com 
           console.log("OPERADA → Quad:", rmsQuad1, "Isquios:", rmsIsq1, "Gluti:", rmsGlut1);
           console.log("SANA → Quad:", rmsQuad2, "Isquios:", rmsIsq2, "Gluti:", rmsGlut2);
 
-          //Diferència absoluta multiplicada * 100 (%)
-          const percentDiff = (operada, sana) => {
-          // const base = (operada + sana) / 2;
-          // if (base === 0) return "N/A";
-            return ((Math.abs(operada - sana)) * 100).toFixed(2);
-          };
+        //Diferència relativa respecte a la mitjana dels dos valors
+        const percentDiff = (operada, sana) => {
+        const mitjana = (operada + sana) / 2;
+        if (mitjana === 0) return "N/A";
+        return ((Math.abs(operada - sana) / mitjana) * 100).toFixed(2);
+        };
+
 
           const diffQuad = percentDiff(rmsQuad1, rmsQuad2);
           const diffIsq = percentDiff(rmsIsq1, rmsIsq2);
           const diffGlut = percentDiff(rmsGlut1, rmsGlut2);
 
-          const highlight = (value) => parseFloat(value) > 20 ? `<span class="alerta">${value}%</span>` : `${value}%`;
+          const highlight = (value) => parseFloat(value) > LLINDAR_DEFICIT ? `<span class="alerta">${value}%</span>` : `${value}%`;
           //compara si la cama operada té rms més baix i si la diferència és prou gran (>20%). Si sí, mostra Possible dèficit en vermell
           const resultHTML = `
           <h3>Comparació RMS EMG</h3>
