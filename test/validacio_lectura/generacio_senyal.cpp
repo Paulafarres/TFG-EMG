@@ -1,15 +1,15 @@
 #include <Arduino.h>
 
 
-const int samplesPerSecond = 500;
+const int samplesPerSecond = 250;
 const int delay_us = 1000000 / samplesPerSecond;
 
 
-const float offset = 1650.0; 
-const float baseline_noise = 0.005; 
-const float emg_ampl = 50.0; 
-const float active_duration = 1; 
-const float rest_duration = 3;   
+const float offset = 1650.0; // 1.65 V per centrar la senyal al voltant de 0
+const float baseline_noise = 0.005; // soroll de fons en mV
+const float emg_ampl = 50.0; // amplitud màxima d'activació
+const float active_duration = 1.0; 
+const float rest_duration = 3.0;   
 
 
 bool activat = false;
