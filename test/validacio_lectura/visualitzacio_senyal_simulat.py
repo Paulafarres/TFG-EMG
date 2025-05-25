@@ -9,7 +9,7 @@ import matplotlib.animation as animation
 SERVICE_UUID = "0af56af5-502d-4244-ae1d-262a9d72945d"
 CHARACTERISTIC_UUID = "4fc085b6-f4a6-4142-ac13-ced0cf3ad0e3"
 
-MAX_POINTS = 500  
+MAX_POINTS = 1000  
 
 v1_vals = []
 v2_vals = []
