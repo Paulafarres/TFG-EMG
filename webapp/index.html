@@ -138,7 +138,7 @@ exportar dades i comparar resultats entre dues cames en exercicis de força com 
       let emgData = [], rmsData = [];
       let rms1_array = [], rms2_array = [], rms3_array = [];
       let startTime = Date.now(), elapsedTime = 0, isRunning = false, bleDevice = null;
-      const MAX_POINTS = 20;
+      const MAX_POINTS = 300;
       const LLINDAR_DEFICIT = 15; // % de diferència que considerem rellevant
 
       //Funcions de gràfics
@@ -155,12 +155,28 @@ exportar dades i comparar resultats entre dues cames en exercicis de força com 
             { label: 'Gluti', data: [], borderColor: 'green' }
           ]
         },
-        options: { 
-          animation: false,
-          responsive: false,
-          scales: { y: { beginAtZero: true } }
-        }
-      });
+         options: {
+            animation: false,
+            responsive: false,
+            scales: {
+              x: {
+                title: { display: true, text: 'Temps (s)' },
+                min: 0,
+                max: MAX_POINTS,
+                ticks: {
+                  stepSize: 100
+                }
+              },
+              y: {
+                beginAtZero: false,
+                suggestedMin: -100,
+                suggestedMax: 100,
+                title: { display: true, text: 'Amplitud (mV)' }
+              }
+            }
+          }
+        });
+
   
       const ctxBar = document.getElementById('barChart').getContext('2d');
       barChart = new Chart(ctxBar, { //Crea un gràfic tipus barra
