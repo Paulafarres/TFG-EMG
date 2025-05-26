@@ -269,7 +269,7 @@ void loop() {
       }
 
       char buffer[100];
-      //Format enviament ble: paquet de text amb 6 línies
+      //Format enviament ble: paquet de text amb 4 línies
       // Línia 1: RMS dels 3 canals separats per comes
       //Línies 2-4: Percentatges (1 per línia)
       snprintf(buffer, sizeof(buffer), "%.2f,%.2f,%.2f\n%.2f\n%.2f\n%.2f\n", rms_vals[0], rms_vals[1], rms_vals[2], perc_vals[0], perc_vals[1], perc_vals[2]);
