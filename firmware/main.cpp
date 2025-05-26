@@ -1,4 +1,4 @@
- //LLIBRERIES PER SPI, BLE, FILTRAT DIGITAL
+//LLIBRERIES PER SPI, BLE, FILTRAT DIGITAL
 #include <Arduino.h>
 #include <SPI.h>
 #include <BLEDevice.h>
